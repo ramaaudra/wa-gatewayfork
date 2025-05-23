@@ -2,7 +2,7 @@
   <div class="page-title">
     <div class="row">
       <div class="col-12 col-md-6 order-md-1 order-last">
-        <h3>Media Library</h3>
+        <h3><% if (user && user.username) { %> <%= user.username %>'s <% } %>Media Library</h3>
         <p class="text-subtitle text-muted">
           Manage your media files for messages and auto-replies.
         </p>
@@ -27,7 +27,7 @@
 <section class="section">
   <div class="card">
     <div class="card-header">
-      <h4 class="card-title">Media Files</h4>
+      <h4 class="card-title">Your Media Files</h4>
       <button
         type="button"
         class="btn btn-primary float-end"

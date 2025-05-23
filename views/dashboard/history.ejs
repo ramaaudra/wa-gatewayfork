@@ -5,8 +5,8 @@
 			<div class="page-title">
 				<div class="row">
 					<div class="col-12 col-md-6 order-md-1 order-last">
-						<h3>History Send Message</h3>
-						<p class="text-subtitle text-muted">Save the entire history of the messages you sent</p>
+						<h3><% if (user && user.username) { %> <%= user.username %>'s <% } %>Message History</h3>
+						<p class="text-subtitle text-muted">Review the history of messages sent and received for your sessions.</p>
 					</div>
 					<div class="col-12 col-md-6 order-md-2 order-first">
 						<nav aria-label="breadcrumb" class="breadcrumb-header float-start float-lg-end">
@@ -23,10 +23,10 @@
 			<section class="section">
 				<div class="card">
 					<div class="card-header">
-						<h5 class="card-title">History Table</h5>
+						<h5 class="card-title">Your Message History</h5>
 						<center>
-							<button onclick="alertDeleteAllHistory()" style="margin-top: 5px" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Delete Keyword">
-								<i class="fa-solid fa-trash-can"></i>&nbsp;&nbsp; Delete All History
+							<button onclick="alertDeleteAllHistory()" style="margin-top: 5px" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Delete All Your History">
+								<i class="fa-solid fa-trash-can"></i>&nbsp;&nbsp; Delete All Your History
 							</button>
 						</center>
 					</div>

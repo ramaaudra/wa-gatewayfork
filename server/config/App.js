@@ -51,6 +51,7 @@ class App {
       res.locals.error_msg = req.flash("error_msg");
       res.locals.side = req.flash("side");
       res.locals.url = req.originalUrl;
+      res.locals.user = req.session.user; // Make user available to all views
       next();
     });
 

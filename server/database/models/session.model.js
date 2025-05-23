@@ -19,6 +19,16 @@ const Session = sequelize.define(
 			type: DataTypes.STRING,
 			allowNull: false,
 		},
+		user_id: {
+			type: DataTypes.INTEGER,
+			allowNull: true, // Or false if a session must have a user
+			references: {
+				model: "users", // Name of the target table
+				key: "id",
+			},
+			onUpdate: "CASCADE",
+			onDelete: "SET NULL", // Or 'CASCADE'
+		},
 	},
 	{ tableName: "sessions", timestamps: true }
 );
@@ -27,5 +37,11 @@ Session.removeAttribute("id");
 
 Session.hasMany(History, { foreignKey: "session_name" });
 History.belongsTo(Session, { foreignKey: "session_name" });
+
+import User from './user.model.js'; // Import User model
+
+// Define associations
+User.hasMany(Session, { foreignKey: 'user_id' });
+Session.belongsTo(User, { foreignKey: 'user_id' });
 
 export default Session;

@@ -72,8 +72,9 @@ class ControllerApi extends ConnectionSession {
         target
       );
       if (!client || !toTarget) return;
+      const userId = req.session.user ? req.session.user.id : null; // Get userId from session
       await new Client(client, toTarget).sendText(message);
-      await this.history.pushNewMessage(sessions, "TEXT", toTarget, message);
+      await this.history.pushNewMessage(sessions, "TEXT", toTarget, message, userId); // Pass userId
       return res.send({
         status: 200,
         message: `Success Send Message to ${target}!`,
@@ -99,11 +100,13 @@ class ControllerApi extends ConnectionSession {
       );
       if (!client || !toTarget) return;
       await new Client(client, toTarget).sendLocation(lat, long);
+      const userId = req.session.user ? req.session.user.id : null; // Get userId from session
       await this.history.pushNewMessage(
         sessions,
         "LOCATION",
         toTarget,
-        `Long : ${long} - Lat : ${lat}`
+        `Long : ${long} - Lat : ${lat}`,
+        userId // Pass userId
       );
       return res.send({
         status: 200,
@@ -146,12 +149,14 @@ class ControllerApi extends ConnectionSession {
             mimetype: media.mimetype,
           },
         };
+        const userId = req.session.user ? req.session.user.id : null;
         await new Client(client, toTarget).sendMedia(mediaPath, text, opts);
         await this.history.pushNewMessage(
           sessions,
           "MEDIA",
           toTarget,
-          `File : ${media.filename} (from Library), Caption : ${text}`
+          `File : ${media.filename} (from Library), Caption : ${text}`,
+          userId // Pass userId
         );
         return res.send({
           status: 200,
@@ -161,12 +166,14 @@ class ControllerApi extends ConnectionSession {
         const file = req.files.file;
         const dest = `./public/temp/${nameRandom}${path.extname(file.name)}`;
         await file.mv(dest);
+        const userId = req.session.user ? req.session.user.id : null;
         await new Client(client, toTarget).sendMedia(dest, text, { file });
         await this.history.pushNewMessage(
           sessions,
           "MEDIA",
           toTarget,
-          `File : ${file.name}, Caption : ${text}`
+          `File : ${file.name}, Caption : ${text}`,
+          userId // Pass userId
         );
         res.send({
           status: 200,
@@ -188,12 +195,14 @@ class ControllerApi extends ConnectionSession {
               mimetype: buffer.headers["content-type"],
             },
           };
+          const userId = req.session.user ? req.session.user.id : null;
           await new Client(client, toTarget).sendMedia(dest, text, opts);
           await this.history.pushNewMessage(
             sessions,
             "MEDIA",
             toTarget,
-            `File : ${url}, Caption : ${text}`
+            `File : ${url}, Caption : ${text}`,
+            userId // Pass userId
           );
           res.send({
             status: 200,
@@ -243,11 +252,13 @@ class ControllerApi extends ConnectionSession {
           author,
           true
         );
+        const userId = req.session.user ? req.session.user.id : null;
         await this.history.pushNewMessage(
           sessions,
           "STICKER",
           toTarget,
-          file.name
+          file.name,
+          userId // Pass userId
         );
         return res.send({
           status: 200,
@@ -270,7 +281,8 @@ class ControllerApi extends ConnectionSession {
             author,
             true
           );
-          await this.history.pushNewMessage(sessions, "STICKER", toTarget, url);
+          const userId = req.session.user ? req.session.user.id : null;
+          await this.history.pushNewMessage(sessions, "STICKER", toTarget, url, userId); // Pass userId
           return res.send({
             status: 200,
             message: `Success Send Message to ${target}!`,
@@ -332,7 +344,10 @@ class ControllerApi extends ConnectionSession {
           sessions,
           "PRODUCT",
           toTarget,
-          `${title}, ${price} - ${salePrice}`
+          `${title}, ${price} - ${salePrice}`,
+          userId // Pass userId
+          `${title}, ${price} - ${salePrice}`,
+          userId // Pass userId
         );
         res.send({
           status: 200,
@@ -439,7 +454,8 @@ class ControllerApi extends ConnectionSession {
           sessions,
           "CONTACT",
           toTarget,
-          `${contact} - ${contactName}, ${anotherContact}`
+          `${contact} - ${contactName}, ${anotherContact}`,
+          userId // Pass userId
         );
         return res.send({
           status: 200,
@@ -565,7 +581,8 @@ class ControllerApi extends ConnectionSession {
         toTarget,
         randomId,
         buttDb,
-        btnMessage
+        btnMessage,
+        req.session.user ? req.session.user.id : null // Pass userId
       );
 
       if (isFile == 1) {
@@ -587,7 +604,8 @@ class ControllerApi extends ConnectionSession {
       } else {
         await new Client(client, toTarget).sendButton(text, footer, buttons);
       }
-      await this.history.pushNewMessage(sessions, "BUTTON", toTarget, message);
+      const userId = req.session.user ? req.session.user.id : null;
+      await this.history.pushNewMessage(sessions, "BUTTON", toTarget, message, userId); // Pass userId
       return res.send({
         status: 200,
         message: `Success Send Message to ${target}!`,
@@ -643,7 +661,8 @@ class ControllerApi extends ConnectionSession {
         toTarget,
         randomId,
         listDb,
-        respRow
+        respRow,
+        req.session.user ? req.session.user.id : null // Pass userId
       );
       await new Client(client, toTarget).sendList(
         body,
@@ -652,7 +671,8 @@ class ControllerApi extends ConnectionSession {
         button,
         sections
       );
-      await this.history.pushNewMessage(sessions, "LIST", toTarget, title);
+      const userId = req.session.user ? req.session.user.id : null;
+      await this.history.pushNewMessage(sessions, "LIST", toTarget, title, userId); // Pass userId
       return res.send({
         status: 200,
         message: `Success Send Message to ${target}!`,
@@ -665,50 +685,72 @@ class ControllerApi extends ConnectionSession {
 
   async deleteHistory(req, res) {
     try {
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
+      }
       let { id } = req.query;
       if (id) {
-        await this.history.deleteHistory(id);
-        return res.send({
-          status: 200,
-          message: `Success Delete History Send Message`,
-        });
+        const success = await this.history.deleteHistory(id, userId); // Pass userId
+        if (success) {
+          return res.send({
+            status: 200,
+            message: `Success Delete History Send Message`,
+          });
+        } else {
+          return res.status(404).send({ status: 404, message: `History item not found or not owned by user.` });
+        }
       } else {
-        return res.send({ status: 404, message: `Not Found` });
+        return res.status(400).send({ status: 400, message: `History ID not provided.` });
       }
     } catch (error) {
-      console.log(error);
-      return res.send({ status: 500, message: "Internal Server Error" });
+      console.error("Error in deleteHistory:", error);
+      return res.status(500).send({ status: 500, message: "Internal Server Error" });
     }
   }
 
   async deleteAllHistory(req, res) {
     try {
-      await this.history.deleteAllHistory();
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
+      }
+      await this.history.deleteAllHistory(userId); // Pass userId
       return res.send({
         status: 200,
-        message: `Success Delete All History Send Message`,
+        message: `Success Delete All History Send Message for your account.`,
       });
     } catch (error) {
-      console.log(error);
-      return res.send({ status: 500, message: "Internal Server Error" });
+      console.error("Error in deleteAllHistory:", error);
+      return res.status(500).send({ status: 500, message: "Internal Server Error" });
     }
   }
 
   async getSessions(req, res) {
+    // This should be filtered by user_id if it's not an admin endpoint
+    // Assuming this is for the current user based on task context
+    const userId = req.session.user ? req.session.user.id : null;
+    if (!userId && !req.isAdmin) { // req.isAdmin would be a hypothetical flag for admin access
+        return res.status(401).send({ status: 401, message: "Unauthorized." });
+    }
+
     try {
       const data = await this.session.findAll({
         include: [
           {
             model: History,
+            ...(userId && { where: { user_id: userId } }), // Filter history if user is not admin
+            required: false // Use left join if not all sessions have history or for admin view
           },
         ],
+        ...(userId && { where: { user_id: userId } }), // Filter sessions by user_id
       });
       return res.status(200).send({
         data,
       });
     } catch (error) {
-      console.log(error);
-      return res.send({ status: 500, message: "Internal Server Error" });
+      console.error("Error in getSessions:", error);
+      return res.status(500).send({ status: 500, message: "Internal Server Error" });
     }
   }
 }

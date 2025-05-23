@@ -24,6 +24,7 @@ class ConnectionSession extends SessionDatabase {
     this.sessionPath = SESSION_PATH;
     this.logPath = LOG_PATH;
     this.count = 0;
+    this.history = new HistoryMessage(); // Instantiate HistoryMessage
 
     // Create necessary directories if they don't exist
     if (!fs.existsSync(this.sessionPath)) {
@@ -105,8 +106,26 @@ class ConnectionSession extends SessionDatabase {
     console.log(this.count);
   }
 
-  async createSession(session_name) {
+  async createSession(session_name, userId = null) { // Add userId parameter
+    if (!userId) {
+      // This case should ideally be prevented by the controller
+      // but as a safeguard:
+      console.error(modules.color("[ERROR]", "#FF0000"), modules.color(`Attempted to create session '${session_name}' without a userId.`, "#E6B0AA"));
+      // Optionally, emit an error to the specific client if possible, or handle as appropriate
+      // For now, we'll prevent session creation if no userId is provided at this stage
+      socket.emit("connection-status", {
+        session_name,
+        result: "Error: User not identified. Cannot create session.",
+      });
+      return; // Stop session creation
+    }
+
     const sessionDir = `${this.sessionPath}/${session_name}`;
+    // Potentially, prefix sessionDir with userId to ensure filesystem isolation if session_names can overlap between users
+    // e.g., const sessionDir = `${this.sessionPath}/${userId}_${session_name}`;
+    // This would also require changes to how session_name is used elsewhere (e.g., getClient, deleteSession)
+    // For now, assuming session_name is globally unique on the filesystem as per original logic.
+
     let { state, saveCreds } = await useMultiFileAuthState(sessionDir);
     const { version, isLatest } = await fetchLatestBaileysVersion();
 
@@ -138,9 +157,11 @@ class ConnectionSession extends SessionDatabase {
       if (update.qr) this.generateQr(update.qr, session_name);
 
       if (update.isNewLogin) {
+        // Pass userId to createSessionDB
         await this.createSessionDB(
           session_name,
-          client.authState.creds.me.id.split(":")[0]
+          client.authState.creds.me.id.split(":")[0],
+          userId // Pass userId here
         );
         let files = `${this.logPath}/${session_name}.txt`;
         try {
@@ -198,13 +219,15 @@ class ConnectionSession extends SessionDatabase {
             console.log(
               modules.color("[SYS]", "#EB6112"),
               modules.color(
-                `[Session: ${session_name}] Connection closed, reconnecting....`,
+                `[Session: ${session_name}] Connection closed, reconnecting.... UserId: ${userId}`,
                 "#E6B0AA"
               )
             );
-            this.createSession(session_name);
+            // Pass userId when attempting to reconnect
+            this.createSession(session_name, userId);
           } else if (checked && checked.isStop == true) {
-            await this.updateStatusSessionDB(session_name, "STOPPED");
+            // Ensure this update is also user-aware if necessary, though status updates might be global for a session_name
+            await this.updateStatusSessionDB(session_name, "STOPPED", userId);
             console.log(
               modules.color("[SYS]", "#EB6112"),
               modules.color(
@@ -218,11 +241,11 @@ class ConnectionSession extends SessionDatabase {
           console.log(
             modules.color("[SYS]", "#EB6112"),
             modules.color(
-              `[Session: ${session_name}] Connection Lost from Server, reconnecting...`,
+              `[Session: ${session_name}] Connection Lost from Server, reconnecting... UserId: ${userId}`,
               "#E6B0AA"
             )
           );
-          this.createSession(session_name);
+          this.createSession(session_name, userId); // Pass userId
         } else if (reason === DisconnectReason.connectionReplaced) {
           console.log(
             modules.color("[SYS]", "#EB6112"),
@@ -279,20 +302,20 @@ class ConnectionSession extends SessionDatabase {
           console.log(
             modules.color("[SYS]", "#EB6112"),
             modules.color(
-              `[Session: ${session_name}] Restart Required, Restarting...`,
+              `[Session: ${session_name}] Restart Required, Restarting... UserId: ${userId}`,
               "#E6B0AA"
             )
           );
-          this.createSession(session_name);
+          this.createSession(session_name, userId); // Pass userId
         } else if (reason === DisconnectReason.timedOut) {
           console.log(
             modules.color("[SYS]", "#EB6112"),
             modules.color(
-              `[Session: ${session_name}] Connection TimedOut, Reconnecting...`,
+              `[Session: ${session_name}] Connection TimedOut, Reconnecting... UserId: ${userId}`,
               "#E6B0AA"
             )
           );
-          this.createSession(session_name);
+          this.createSession(session_name, userId); // Pass userId
         } else {
           client.end(
             `Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`
@@ -314,8 +337,25 @@ class ConnectionSession extends SessionDatabase {
 
     client.ev.on("messages.upsert", async ({ messages, type }) => {
       if (type !== "notify") return;
-      const message = new Message(client, { messages, type }, session_name);
-      message.mainHandler();
+      // Pass userId to Message handler if it needs to associate history with user
+      // This requires Message class to be updated as well.
+      const msgInstance = new Message(client, { messages, type }, session_name, userId);
+      await msgInstance.mainHandler(); // Ensure mainHandler completes
+
+      // Log incoming message to history
+      const incomingMessage = messages[0];
+      if (incomingMessage && incomingMessage.message) {
+        const m = await msgInstance.serial(client, incomingMessage); // Use the serial method from instance
+        if (m.body) { // Only log if there's content
+          await this.history.pushNewMessage(
+            session_name,
+            m.type, // e.g., "text", "image"
+            m.from, // Sender JID
+            m.body, // Message content or caption
+            userId  // The user ID associated with this session
+          );
+        }
+      }
     });
   }
 }

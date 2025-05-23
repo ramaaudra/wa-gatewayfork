@@ -137,6 +137,17 @@ export default class MediaController {
         const relativePath = `/media/library/${req.file.filename}`;
 
         try {
+          const userId = req.session.user ? req.session.user.id : null;
+          if (!userId) {
+            console.error("User not authenticated for media upload.");
+            if (isAjaxRequest(req)) {
+              return res.status(401).json({ success: false, message: "Unauthorized. Please log in to upload media." });
+            } else {
+              req.flash("error_msg", "Please log in to upload media.");
+              return res.redirect("/dashboard/login");
+            }
+          }
+
           console.log("Saving to database with:", {
             name,
             filename: req.file.filename,
@@ -144,6 +155,7 @@ export default class MediaController {
             mimetype: req.file.mimetype,
             size: req.file.size,
             description,
+            userId,
           });
 
           const result = await this.mediaLibrary.addMedia(
@@ -152,7 +164,8 @@ export default class MediaController {
             relativePath,
             req.file.mimetype,
             req.file.size,
-            description
+            description,
+            userId // Pass userId
           );
 
           console.log("Database result:", result);
@@ -242,7 +255,12 @@ export default class MediaController {
   // Get all media for API
   getAllMedia = async (req, res) => {
     try {
-      const result = await this.mediaLibrary.getAllMedia();
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized. Please log in." });
+      }
+      // Pass userId to filter media
+      const result = await this.mediaLibrary.getAllMedia(userId); 
 
       if (result.success) {
         return res.status(200).json({
@@ -269,6 +287,10 @@ export default class MediaController {
   // Get media by ID for API
   getMediaById = async (req, res) => {
     try {
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).json({ status: 401, message: "Unauthorized. Please log in." });
+      }
       const { id } = req.params;
 
       if (!id) {
@@ -277,18 +299,25 @@ export default class MediaController {
           message: "Media ID is required",
         });
       }
-
-      const result = await this.mediaLibrary.getMediaById(id);
+      // Pass userId for ownership check
+      const result = await this.mediaLibrary.getMediaById(id, userId); 
 
       if (result.success) {
+        if (!result.data) { // Check if data is null (not found for this user)
+          return res.status(404).json({
+            status: 404,
+            message: "Media not found or you do not have permission to access it.",
+          });
+        }
         return res.status(200).json({
           status: 200,
           data: result.data,
         });
       } else {
-        return res.status(404).json({
-          status: 404,
-          message: result.error,
+        // Original error handling from mediaLibrary (e.g., DB error)
+        return res.status(500).json({ // Changed from 404 to 500 if result.success is false
+          status: 500, 
+          message: result.error || "Failed to retrieve media.",
         });
       }
     } catch (error) {

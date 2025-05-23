@@ -1,5 +1,5 @@
 <div class="page-heading">
-  <h3>Dashboard</h3>
+  <h3><% if (user && user.username) { %> <%= user.username %>'s Dashboard <% } else { %> Dashboard <% } %></h3>
 </div>
 <div class="page-content">
   <%- include('../layouts/alert') %>

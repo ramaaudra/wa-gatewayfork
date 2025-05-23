@@ -9,6 +9,7 @@ It includes the original features plus the following key enhancements:
 - 🔄 **Multi Session Support**: Added the ability to manage multiple WhatsApp sessions.
 - 📁 **Media Library**: Implemented a new system for managing media files.
 - 🤖 **Auto Reply with Media**: Enhanced the auto-reply feature to support media attachments.
+- 👤 **Multi-User Authentication & Data Isolation**: Added user registration, login, and data isolation, allowing multiple users to manage their WhatsApp sessions and related data independently.
 
 All credit for the original project goes to **[fawwaz37](https://github.com/fawwaz37)**.
 </div>
@@ -39,9 +40,10 @@ Because there are no other features added to this free repo
 
 Requirements
 
--   [Node.js](https://nodejs.org/en/)
+-   [Node.js](https://nodejs.org/en/) (Version 18.x recommended, see `.env` for specific version compatibility if issues arise with Baileys)
 -   [Git](https://git-scm.com/downloads)
 -   [VS Code](https://code.visualstudio.com/download) or Any Text Editor
+-   A MySQL database server.
 
 ## Cloning this repo
 
@@ -100,10 +102,32 @@ DB_DIALECT=mysql
 
 **After Start Database and Table Auto Create**
 
-Then Browse http://localhost:8080 . You will see the Dashboard.
+Then Browse http://localhost:YOUR_PORT (e.g., http://localhost:8080). You will be redirected to the login page.
+
+### User Authentication
+
+This version of the WhatsApp Gateway includes multi-user authentication.
+
+1.  **Registration**: New users must register an account via the "Register" link on the login page. You will need to provide a username, email, and password.
+2.  **Login**: Existing users can log in with their username and password.
+3.  **Data Isolation**: Once logged in, all data including WhatsApp sessions, media files, auto-reply configurations, and message history will be isolated to your user account. You will only be able to see and manage your own data.
 
 <img src="./public/image/readme/dashboard.png" width="500" alt="Img Dashboard" >
 
-## API Docs
+## API Documentation & Authentication
 
-You Can See All Documentation Here <a target="_blank" href="https://documenter.getpostman.com/view/16528402/VVXC3EjU">POSTMAN</a>
+The original API documentation can be found here: <a target="_blank" href="https://documenter.getpostman.com/view/16528402/VVXC3EjU">POSTMAN</a>.
+
+**Important API Authentication Update:**
+
+With the introduction of user authentication, **all API routes are now protected and require authentication.**
+
+-   **Authentication Method**: API authentication is handled via session cookies. To use the API, you must first log in through the web dashboard. Your API client (e.g., Postman, curl, custom scripts) must then include the session cookie (usually named `connect.sid`) in its requests to the API endpoints.
+-   **How to obtain the session cookie**:
+    1.  Log in to the dashboard via a web browser.
+    2.  Use your browser's developer tools to inspect the cookies sent with requests to the backend (e.g., when navigating dashboard pages or making API calls from the dashboard's "Send Message" page).
+    3.  Copy the value of the `connect.sid` cookie (or the equivalent session cookie name if it differs).
+    4.  Include this cookie in the `Cookie` header of your API requests. For example: `Cookie: connect.sid=your_session_cookie_value_here`
+-   **Unauthorized Access**: If you attempt to access a protected API route without a valid session cookie, the API will respond with a `401 Unauthorized` error and a JSON message indicating that authentication is required.
+
+Future versions might include token-based authentication for more convenient API usage, but currently, session-based authentication is used.
