@@ -1,0 +1,19 @@
+&lt;!-- Add Media Modal --> &lt;div class="modal fade" id="addMediaModal"
+tabindex="-1" role="dialog"> &lt;div class="modal-dialog" role="document">
+&lt;div class="modal-content"> &lt;div class="modal-header"> &lt;h5
+class="modal-title">Add New Media&lt;/h5> &lt;button type="button"
+class="btn-close" data-bs-dismiss="modal" aria-label="Close"> &lt;/button>
+&lt;/div> &lt;div class="modal-body"> &lt;form id="addMediaForm"
+action="/dashboard/media-library/upload" method="POST"
+enctype="multipart/form-data"> &lt;div class="form-group"> &lt;label
+for="name">Media Name&lt;/label> &lt;input type="text" class="form-control"
+id="name" name="name" required> &lt;/div> &lt;div class="form-group mt-3">
+&lt;label for="description">Description&lt;/label> &lt;textarea
+class="form-control" id="description" name="description" rows="3">&lt;/textarea>
+&lt;/div> &lt;div class="form-group mt-3"> &lt;label for="file">File&lt;/label>
+&lt;input type="file" class="form-control" id="file" name="file" required>
+&lt;/div> &lt;div class="preview-container mt-3">&lt;/div> &lt;div
+class="modal-footer"> &lt;button type="button" class="btn btn-secondary"
+data-bs-dismiss="modal">Close&lt;/button> &lt;button type="submit" class="btn
+btn-primary">Upload&lt;/button> &lt;/div> &lt;/form> &lt;/div> &lt;/div>
+&lt;/div> &lt;/div>

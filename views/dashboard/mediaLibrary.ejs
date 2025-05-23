@@ -1,0 +1,420 @@
+<div class="page-heading">
+  <div class="page-title">
+    <div class="row">
+      <div class="col-12 col-md-6 order-md-1 order-last">
+        <h3>Media Library</h3>
+        <p class="text-subtitle text-muted">
+          Manage your media files for messages and auto-replies.
+        </p>
+      </div>
+      <div class="col-12 col-md-6 order-md-2 order-first">
+        <nav
+          aria-label="breadcrumb"
+          class="breadcrumb-header float-start float-lg-end"
+        >
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">
+              Media Library
+            </li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="section">
+  <div class="card">
+    <div class="card-header">
+      <h4 class="card-title">Media Files</h4>
+      <button
+        type="button"
+        class="btn btn-primary float-end"
+        data-bs-toggle="modal"
+        data-bs-target="#addMediaModal"
+      >
+        <i class="bi bi-plus-circle"></i> Add New Media
+      </button>
+    </div>
+    <div class="card-body">
+      <table class="table table-striped" id="mediaTable">
+        <thead>
+          <tr>
+            <th>Preview</th>
+            <th>Name</th>
+            <th>File Name</th>
+            <th>Type</th>
+            <th>Size</th>
+            <th>Upload Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (mediaItems && mediaItems.length > 0) { %> <%
+          mediaItems.forEach(media => { %>
+          <tr id="mediaRow_<%= media.id %>">
+            <td>
+              <% if (media.mime_type && media.mime_type.startsWith('image/')) {
+              %>
+              <img
+                src="<%= baseUrl %>/media/library/<%= media.file_name %>"
+                alt="<%= media.name %>"
+                width="50"
+                height="50"
+                style="object-fit: cover"
+              />
+              <% } else if (media.mime_type &&
+              media.mime_type.startsWith('video/')) { %>
+              <video width="50" height="50" controls>
+                <source
+                  src="<%= baseUrl %>/media/library/<%= media.file_name %>"
+                  type="<%= media.mime_type %>"
+                />
+                Your browser does not support the video tag.
+              </video>
+              <% } else if (media.mime_type &&
+              media.mime_type.startsWith('audio/')) { %>
+              <audio controls>
+                <source
+                  src="<%= baseUrl %>/media/library/<%= media.file_name %>"
+                  type="<%= media.mime_type %>"
+                />
+                Your browser does not support the audio tag.
+              </audio>
+              <% } else { %>
+              <i class="bi bi-file-earmark-fill fs-3"></i>
+              <% } %>
+            </td>
+            <td><%= media.name %></td>
+            <td><%= media.file_name %></td>
+            <td><%= media.mime_type %></td>
+            <td><%= (media.size / 1024).toFixed(2) %> KB</td>
+            <td><%= new Date(media.upload_date).toLocaleDateString() %></td>
+            <td>
+              <button
+                class="btn btn-sm btn-info me-1 edit-media-btn"
+                data-media-id="<%= media.id %>"
+                data-media-json="<%- encodeURIComponent(JSON.stringify(media)) %>"
+              >
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button
+                class="btn btn-sm btn-danger"
+                onclick="window.deleteMedia('<%= media.id %>')"
+              >
+                <i class="bi bi-trash-fill"></i>
+              </button>
+            </td>
+          </tr>
+          <% }) %> <% } else { %>
+          <tr>
+            <td colspan="7" class="text-center">No media files found.</td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Add Media Modal -->
+<div class="modal fade" id="addMediaModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add New Media</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <form
+          id="addMediaForm"
+          action="/dashboard/media-library/upload"
+          method="POST"
+          enctype="multipart/form-data"
+        >
+          <div class="form-group">
+            <label for="name">Media Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="name"
+              name="name"
+              required
+            />
+          </div>
+          <div class="form-group mt-3">
+            <label for="description">Description</label>
+            <textarea
+              class="form-control"
+              id="description"
+              name="description"
+              rows="3"
+            ></textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label for="file">File</label>
+            <input
+              type="file"
+              class="form-control"
+              id="file"
+              name="file"
+              required
+            />
+          </div>
+          <div class="preview-container mt-3"></div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+            <button type="submit" class="btn btn-primary">Upload</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Media Modal -->
+<div
+  class="modal fade"
+  id="editMediaModal"
+  tabindex="-1"
+  aria-labelledby="editMediaModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editMediaModalLabel">Edit Media</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <form id="editMediaForm" enctype="multipart/form-data">
+        <input type="hidden" id="editMediaId" name="id" />
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="editMediaName" class="form-label">Media Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="editMediaName"
+              name="name"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="editMediaDescription" class="form-label"
+              >Description (Optional)</label
+            >
+            <textarea
+              class="form-control"
+              id="editMediaDescription"
+              name="description"
+              rows="3"
+            ></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Current File</label>
+            <div id="currentMediaPreview"></div>
+          </div>
+          <div class="mb-3">
+            <label for="editMediaFile" class="form-label"
+              >Replace File (Optional)</label
+            >
+            <input
+              type="file"
+              class="form-control"
+              id="editMediaFile"
+              name="file"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Close
+          </button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Edit Media Form Submission
+  document
+    .getElementById("editMediaForm")
+    .addEventListener("submit", async function (event) {
+      event.preventDefault();
+      const formData = new FormData(this);
+      const mediaId = document.getElementById("editMediaId").value;
+      const submitButton = this.querySelector('button[type="submit"]');
+
+      // Log form data to console for debugging
+      console.log("Form data for edit submission:");
+      for (let pair of formData.entries()) {
+        console.log(
+          pair[0] + ": " + (pair[1] instanceof File ? pair[1].name : pair[1])
+        );
+      }
+
+      submitButton.disabled = true;
+      submitButton.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+      try {
+        const response = await fetch(
+          "/dashboard/media-library/edit/" + mediaId,
+          {
+            method: "POST", // Should be PUT, but forms only support GET/POST. Controller handles it.
+            headers: {
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server error:", response.status, errorText);
+
+          // Try to parse error JSON if possible
+          try {
+            const errorData = JSON.parse(errorText);
+            throw new Error(
+              errorData.message || `Server returned ${response.status}`
+            );
+          } catch (e) {
+            if (e instanceof SyntaxError) {
+              // Not JSON, use text directly
+              throw new Error(
+                `Server returned ${response.status}: ${errorText}`
+              );
+            } else {
+              // Rethrow the parsed error
+              throw e;
+            }
+          }
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+          Swal.fire("Success!", result.message, "success").then(() => {
+            location.reload();
+          });
+        } else {
+          Swal.fire(
+            "Error!",
+            result.message || "Failed to update media.",
+            "error"
+          );
+        }
+      } catch (error) {
+        console.error("Update error:", error);
+        Swal.fire("Error!", "An unexpected error occurred.", "error");
+      } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = "Save Changes";
+        bootstrap.Modal.getInstance(
+          document.getElementById("editMediaModal")
+        ).hide();
+      }
+    });
+
+  // Media Upload Handling
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("addMediaForm");
+    if (form) {
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML =
+          '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+
+        fetch("/dashboard/media-library/upload", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: new FormData(this),
+        })
+          .then((response) => {
+            // Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              return response.json().then((data) => {
+                if (data.success) {
+                  // Display success message with SweetAlert
+                  Swal.fire({
+                    title: "Success!",
+                    text: data.message || "Media uploaded successfully",
+                    icon: "success",
+                    timer: 1500,
+                    showConfirmButton: false,
+                  }).then(() => {
+                    // Use the redirect URL from the response if available, otherwise default to media library
+                    const redirectUrl =
+                      data.redirect || "/dashboard/media-library";
+                    window.location.href = redirectUrl;
+                  });
+                  return null;
+                } else {
+                  throw new Error(data.message || "Upload failed");
+                }
+              });
+            } else {
+              // Not a JSON response, assume the server handled the redirect
+              console.log(
+                "Non-JSON response received, page should reload or redirect automatically"
+              );
+              // Fallback redirect if needed
+              setTimeout(() => {
+                window.location.href = "/dashboard/media-library";
+              }, 1000);
+              return null;
+            }
+          })
+          .catch((error) => {
+            console.error("Upload error:", error);
+            Swal.fire(
+              "Error!",
+              error.message || "Failed to upload media",
+              "error"
+            );
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = "Upload";
+          });
+      });
+    }
+  });
+</script>
+
+<!-- Include the media library JavaScript file -->
+<script src="/assets/js/mediaLibrary.js"></script>
+
+<!-- Debug script for edit functionality -->
+<script>
+  console.log("Media Library page loaded - Debug mode");
+</script>
