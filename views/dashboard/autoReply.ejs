@@ -5,9 +5,9 @@
       <div class="page-title">
         <div class="row">
           <div class="col-12 col-md-6 order-md-1 order-last">
-            <h3>Auto Reply Setting</h3>
+            <h3><% if (user && user.username) { %> <%= user.username %>'s <% } %>Auto Reply Settings</h3>
             <p class="text-subtitle text-muted">
-              Automatic Message Reply According to Keyword
+              Manage automatic message replies for your sessions.
             </p>
           </div>
           <div class="col-12 col-md-6 order-md-2 order-first">
@@ -32,9 +32,9 @@
       <section class="section">
         <div class="card">
           <div class="card-header">
-            <h5 class="card-title">List Response</h5>
+            <h5 class="card-title">Your Auto-Reply Rules</h5>
             <p class="text-subtitle text-muted">
-              You can add auto-reply keywords via the button below
+              Add, edit, or delete auto-reply rules for your WhatsApp sessions.
             </p>
           </div>
           <center>

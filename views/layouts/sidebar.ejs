@@ -107,6 +107,34 @@
             <span>Repository</span>
           </a>
         </li>
+
+        <% if (!user) { %>
+        <li class="sidebar-title">Authentication</li>
+        <li
+          class="sidebar-item <% if (url == '/dashboard/login') { %> active <% } %>"
+        >
+          <a href="/dashboard/login" class="sidebar-link">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Login</span>
+          </a>
+        </li>
+        <li
+          class="sidebar-item <% if (url == '/dashboard/register') { %> active <% } %>"
+        >
+          <a href="/dashboard/register" class="sidebar-link">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Register</span>
+          </a>
+        </li>
+        <% } else { %>
+        <li class="sidebar-title">User Account</li>
+        <li class="sidebar-item">
+          <a href="/dashboard/logout" class="sidebar-link">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Logout (<%= user.username %>)</span>
+          </a>
+        </li>
+        <% } %>
       </ul>
     </div>
   </div>

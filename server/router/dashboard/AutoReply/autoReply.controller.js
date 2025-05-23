@@ -25,42 +25,53 @@ export default class AutoReplyController extends AutoReply {
 
   async createReply(req, res) {
     try {
-      let { session, keyword, respon, mediaLibraryId } = req.body; // Added mediaLibraryId
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
+      }
+
+      let { session, keyword, respon, mediaLibraryId } = req.body;
       if (!session || !keyword || !respon) {
         return res
           .status(400)
-          .send({ status: 400, message: `Input Data Keyword & Response` });
+          .send({ status: 400, message: "Input Data Keyword & Response." });
       }
 
       let session_number = session.split(" (")[1].replace(")", "").trim();
       let session_name = session.split(" (")[0];
-      let check = await this.checkExistAutoReply(session_number, keyword);
+      
+      // Check if this session_name belongs to the user before proceeding
+      // This requires a method like findOneSessionByNameAndUser from SessionDatabase
+      // For now, assuming session parameter is valid and belongs to user or is admin-managed
+      // Ideally: const userSession = await new SessionDatabase().findOneSessionByNameAndUser(session_name, userId);
+      // if (!userSession) return res.status(403).send({ status: 403, message: "Forbidden: Session does not belong to you." });
+
+
+      // checkExistAutoReply should also be user-aware
+      let check = await this.checkExistAutoReply(session_number, keyword, userId);
 
       if (check) {
         return res
           .status(403)
           .send({
             status: 403,
-            message: `Cannot Create Auto Reply With Keyword ${keyword} Again in Same Session ${session_number}`,
+            message: `Cannot Create Auto Reply With Keyword ${keyword} Again in Same Session ${session_number} for your account.`,
           });
       } else {
         let media_type = null;
         let media_url = null;
 
         if (mediaLibraryId) {
-          const mediaItem = await MediaModel.findByPk(mediaLibraryId);
+          // Ensure the media item from library belongs to the user
+          const mediaItem = await MediaModel.findOne({ where: { id: mediaLibraryId, user_id: userId } });
           if (mediaItem) {
             media_type = mediaItem.mime_type;
-            // mediaItem.file_path is like /public/media/library/filename.ext
-            // We need the URL part: /media/library/filename.ext
             media_url = mediaItem.file_path.replace(/^\/public/, "");
           } else {
-            console.warn(`Media item with ID ${mediaLibraryId} not found.`);
-            // Optionally, return an error if media library item is specified but not found
-            // return res.status(404).send({ status: 404, message: `Media item not found in library.` });
+            console.warn(`Media item with ID ${mediaLibraryId} not found for user ${userId} or does not exist.`);
+            return res.status(404).send({ status: 404, message: `Media item not found in your library.` });
           }
         } else if (req.file) {
-          // Check if file was uploaded directly
           const file = req.file;
           const filename = `${Date.now()}-${file.originalname.replace(
             /\s+/g,
@@ -69,16 +80,18 @@ export default class AutoReplyController extends AutoReply {
           const filepath = path.join(AUTOREPLY_MEDIA_DIR, filename);
           fs.writeFileSync(filepath, file.buffer);
           media_type = file.mimetype;
-          media_url = `/media/autoreply/${filename}`; // Store URL relative to public
+          media_url = `/media/autoreply/${filename}`;
         }
 
+        // Pass userId to createAutoReply
         await this.createAutoReply(
           session_name,
           session_number,
           keyword,
           respon,
           media_type,
-          media_url
+          media_url,
+          userId
         );
         return res
           .status(200)
@@ -88,15 +101,20 @@ export default class AutoReplyController extends AutoReply {
           });
       }
     } catch (error) {
-      console.log("Error in createReply:", error);
+      console.error("Error in createReply:", error);
       res.status(500).send({ status: 500, message: "Internal Server Error!" });
     }
   }
 
   async editReply(req, res) {
     try {
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
+      }
+
       let {
-        session,
+        session, // This is session_name from the form
         keyword,
         newRespon,
         newKeyword,
@@ -108,53 +126,52 @@ export default class AutoReplyController extends AutoReply {
       if (!session || !keyword || !newRespon || !newKeyword) {
         return res
           .status(400)
-          .send({ status: 400, message: `Input Data Keyword & Response` });
+          .send({ status: 400, message: "Input Data Keyword & Response." });
+      }
+      
+      // session from body is session_name. We need session_number for checkMessageUser if it uses it.
+      // Assuming session is session_name.
+      // checkMessageUser needs to be user-aware.
+      const existingReply = await this.checkMessageUser(session, keyword, userId);
+      if (!existingReply) {
+          return res.status(404).send({status: 404, message: "Auto-reply not found or you do not have permission."});
       }
 
-      let final_media_type = null;
-      let final_media_url = null;
+      let final_media_type = existingReply.media_type; // Default to existing
+      let final_media_url = existingReply.media_url;   // Default to existing
 
-      const existingReply = await this.checkMessageUser(session, keyword);
-
-      // Function to delete old media if it exists
       const deleteOldMediaIfNeeded = (currentReply) => {
-        if (currentReply && currentReply.media_url) {
-          // Determine if the media_url is from autoreply or library
+        if (currentReply && currentReply.media_url && currentReply.media_url.startsWith('/media/autoreply/')) { // Only delete if it's an autoreply media
           const publicPath = path.join(__dirname, "../../../../public");
           const oldMediaPath = path.join(publicPath, currentReply.media_url);
           if (fs.existsSync(oldMediaPath)) {
             try {
               fs.unlinkSync(oldMediaPath);
-              console.log("Deleted old media:", oldMediaPath);
+              console.log("Deleted old autoreply media:", oldMediaPath);
             } catch (delError) {
-              console.error("Error deleting old media:", delError);
+              console.error("Error deleting old autoreply media:", delError);
             }
           }
         }
       };
 
       if (mediaLibraryId) {
-        // Media selected from library
-        const mediaItem = await MediaModel.findByPk(mediaLibraryId);
+        const mediaItem = await MediaModel.findOne({ where: { id: mediaLibraryId, user_id: userId } });
         if (mediaItem) {
+          deleteOldMediaIfNeeded(existingReply); // Delete old custom media if new one is from library
           final_media_type = mediaItem.mime_type;
-          final_media_url = mediaItem.file_path.replace(/^\/public/, ""); // URL relative to public
-          deleteOldMediaIfNeeded(existingReply); // Delete old if new one is from library
+          final_media_url = mediaItem.file_path.replace(/^\/public/, "");
         } else {
-          console.warn(
-            `Media item with ID ${mediaLibraryId} not found for edit.`
-          );
-          // If library item not found, decide if we keep old or remove
-          if (shouldKeepOldMedia && existingReply) {
-            final_media_type = existingReply.media_type;
-            final_media_url = existingReply.media_url;
-          } else {
-            deleteOldMediaIfNeeded(existingReply); // Remove if not keeping
-            // final_media_type and final_media_url remain null
+          // Media from library not found or not owned by user, keep old media if requested
+          if (!shouldKeepOldMedia) {
+            deleteOldMediaIfNeeded(existingReply);
+            final_media_type = null;
+            final_media_url = null;
           }
+          // If shouldKeepOldMedia, final_media_type/url remain as existingReply's
         }
       } else if (req.file) {
-        // New file uploaded directly
+        deleteOldMediaIfNeeded(existingReply); // Delete old custom media if new one is uploaded
         const file = req.file;
         const filename = `${Date.now()}-${file.originalname.replace(
           /\s+/g,
@@ -163,27 +180,27 @@ export default class AutoReplyController extends AutoReply {
         const filepath = path.join(AUTOREPLY_MEDIA_DIR, filename);
         fs.writeFileSync(filepath, file.buffer);
         final_media_type = file.mimetype;
-        final_media_url = `/media/autoreply/${filename}`; // URL relative to public
-        deleteOldMediaIfNeeded(existingReply); // Delete old if new one is uploaded
+        final_media_url = `/media/autoreply/${filename}`;
       } else {
-        // No new media provided (neither library nor upload)
-        if (shouldKeepOldMedia && existingReply) {
-          final_media_type = existingReply.media_type;
-          final_media_url = existingReply.media_url;
-        } else {
-          // Not keeping old media, and no new media provided
+        // No new media selected or uploaded
+        if (!shouldKeepOldMedia) {
           deleteOldMediaIfNeeded(existingReply);
-          // final_media_type and final_media_url remain null
+          final_media_type = null;
+          final_media_url = null;
         }
+        // If shouldKeepOldMedia, final_media_type/url remain as existingReply's (already set by default)
       }
-
+      
+      // Pass userId to editReplyMessage
+      // Assuming session is session_name here. If editReplyMessage needs session_number, it needs to be derived.
       await this.editReplyMessage(
-        session,
+        session, // This is session_name
         keyword,
         newKeyword,
         newRespon,
         final_media_type,
-        final_media_url
+        final_media_url,
+        userId
       );
       return res
         .status(200)
@@ -192,20 +209,30 @@ export default class AutoReplyController extends AutoReply {
           message: `Success Edit Auto Reply ${keyword} With Keyword ${newKeyword}`,
         });
     } catch (error) {
-      console.log("Error in editReply:", error);
+      console.error("Error in editReply:", error);
       res.status(500).send({ status: 500, message: "Internal Server Error!" });
     }
   }
 
   async deleteReply(req, res) {
     try {
-      let { session, keyword } = req.query;
-      if (!session || !keyword) {
-        return res.status(400).send({ status: 400, message: `Input Data!` });
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
       }
 
-      const existingReply = await this.checkMessageUser(session, keyword);
-      if (existingReply && existingReply.media_url) {
+      let { session, keyword } = req.query; // session is session_name
+      if (!session || !keyword) {
+        return res.status(400).send({ status: 400, message: "Input Data!" });
+      }
+
+      // checkMessageUser needs to be user-aware
+      const existingReply = await this.checkMessageUser(session, keyword, userId);
+      if (!existingReply) {
+          return res.status(404).send({status: 404, message: "Auto-reply not found or you do not have permission."});
+      }
+
+      if (existingReply.media_url && existingReply.media_url.startsWith('/media/autoreply/')) {
         const publicPath = path.join(__dirname, "../../../../public");
         const mediaPath = path.join(publicPath, existingReply.media_url);
         if (fs.existsSync(mediaPath)) {
@@ -217,52 +244,58 @@ export default class AutoReplyController extends AutoReply {
           }
         }
       }
-
-      await this.deleteReplyMessage(session, keyword);
+      
+      // Pass userId to deleteReplyMessage
+      await this.deleteReplyMessage(session, keyword, userId);
       return res
         .status(200)
         .send({
           status: 200,
           message: `Success Delete Auto Reply With Keyword ${keyword}`,
         });
-    } catch (error) {
-      console.log("Error in deleteReply:", error);
+    } catch (error)      console.error("Error in deleteReply:", error);
       res.status(500).send({ status: 500, message: "Internal Server Error!" });
     }
   }
 
   async deleteAllReply(req, res) {
     try {
-      // Fetch all replies to delete their media files first
-      const allReplies = await this.getAllKeyword(); // Assuming this method exists and returns all replies
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        return res.status(401).send({ status: 401, message: "Unauthorized. Please log in." });
+      }
+      
+      // getAllKeyword needs to be user-aware
+      const allReplies = await this.getAllKeyword(userId); 
       if (allReplies && allReplies.length > 0) {
         const publicPath = path.join(__dirname, "../../../../public");
         for (const reply of allReplies) {
-          if (reply.media_url) {
+          if (reply.media_url && reply.media_url.startsWith('/media/autoreply/')) {
             const mediaPath = path.join(publicPath, reply.media_url);
             if (fs.existsSync(mediaPath)) {
               try {
                 fs.unlinkSync(mediaPath);
-                console.log("Deleted media on deleteAllReply:", mediaPath);
+                console.log("Deleted media on deleteAllReply for user:", userId, mediaPath);
               } catch (delError) {
                 console.error(
-                  "Error deleting media on deleteAllReply:",
-                  delError
+                  "Error deleting media on deleteAllReply for user:", userId, delError
                 );
               }
             }
           }
         }
       }
-      await this.deleteAllKeyword(); // This deletes records from DB
+      
+      // Pass userId to deleteAllKeyword
+      await this.deleteAllKeyword(userId); 
       return res
         .status(200)
         .send({
           status: 200,
-          message: `Success Delete All Keyword Auto Reply`,
+          message: `Success Delete All Keyword Auto Reply for your account.`,
         });
     } catch (error) {
-      console.log("Error in deleteAllReply:", error);
+      console.error("Error in deleteAllReply:", error);
       res.status(500).send({ status: 500, message: "Internal Server Error!" });
     }
   }

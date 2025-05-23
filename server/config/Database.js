@@ -2,6 +2,13 @@ import { Sequelize } from "sequelize";
 import mysql from "mysql2";
 import { modules } from "../../lib/index.js";
 import { moment } from "./index.js";
+import User from "../database/models/user.model.js";
+import Session from "../database/models/session.model.js";
+import MediaModel from "../database/models/media.model.js";
+import AutoReplyModel from "../database/models/autoReply.model.js";
+import History from "../database/models/history.model.js";
+import ButtonResponseModel from "../database/models/buttonRespon.model.js";
+import ListResponseModel from "../database/models/listRespon.model.js";
 
 const { DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_DIALECT } = process.env;
 
@@ -30,9 +37,27 @@ async function connectDatabase() {
 			console.error(error);
 		});
 
-	await sequelize.sync({ force: false, alter: false }).then(() => {
-		console.log(modules.color("[APP]", "#EB6112"), modules.color(moment().format("DD/MM/YY HH:mm:ss"), "#F8C471"), modules.color(`Re-Sync Database`, "#82E0AA"));
+	// Sync all models. Using alter:true can be risky in production.
+	// It's generally better to handle migrations with a dedicated library.
+	// For development, this can help apply schema changes.
+	const syncOptions = { alter: true }; // Use alter:true to attempt to add new columns
+
+	await sequelize.sync(syncOptions).then(() => {
+		console.log(modules.color("[APP]", "#EB6112"), modules.color(moment().format("DD/MM/YY HH:mm:ss"), "#F8C471"), modules.color(`Re-Sync All Tables (with alter:true)`, "#82E0AA"));
 	});
+	// Individual sync calls are not strictly necessary if sequelize.sync() is called without models,
+	// as it syncs all defined models. However, if specific logging per model is desired,
+	// or if some models need different sync options, they can be done individually.
+	// For this task, a general sequelize.sync({ alter: true }) is sufficient.
 }
 
-export { connectDatabase, sequelize, connection };
+const db = {};
+db.User = User;
+db.Session = Session;
+db.MediaModel = MediaModel;
+db.AutoReplyModel = AutoReplyModel;
+db.History = History;
+db.ButtonResponseModel = ButtonResponseModel;
+db.ListResponseModel = ListResponseModel;
+
+export { connectDatabase, sequelize, connection, db };

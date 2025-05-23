@@ -1,13 +1,18 @@
 import express from "express";
+import { ensureAuthenticated } from "../../middleware/auth.middleware.js"; // Import middleware
 const router = express.Router();
 
 import ControllerApi from "./api.controller.js";
 
 const controller = new ControllerApi();
 
+// Public health check or root endpoint - does not require authentication
 router.get("/", (req, res) => {
-	res.send("okee");
+	res.send("okee API is operational");
 });
+
+// Apply ensureAuthenticated to all routes below this point
+router.use(ensureAuthenticated);
 
 router.get("/session", controller.getSessions.bind(controller));
 
