@@ -1,5 +1,21 @@
 <div align="center">
 
+# 🔱 Fork Information
+
+This repository is a **fork** of the original **[whatsapp-gateway](https://github.com/fawwaz37/whatsapp-gateway)** by **[fawwaz37](https://github.com/fawwaz37)**.
+
+It includes the original features plus the following key enhancements:
+- ✅ **Fixed Create Session**: Resolved issues with session creation.
+- 🔄 **Multi Session Support**: Added the ability to manage multiple WhatsApp sessions.
+- 📁 **Media Library**: Implemented a new system for managing media files.
+- 🤖 **Auto Reply with Media**: Enhanced the auto-reply feature to support media attachments.
+
+All credit for the original project goes to **[fawwaz37](https://github.com/fawwaz37)**.
+</div>
+
+<hr/>
+<div align="center">
+
 # **WhatsApp - Gateway**
 
 <img src="./public/image/readme/dashboard.png" width="500" alt="Img Dashboard" >
