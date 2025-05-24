@@ -141,7 +141,10 @@ export default class MediaController {
           if (!userId) {
             console.error("User not authenticated for media upload.");
             if (isAjaxRequest(req)) {
-              return res.status(401).json({ success: false, message: "Unauthorized. Please log in to upload media." });
+              return res.status(401).json({
+                success: false,
+                message: "Unauthorized. Please log in to upload media.",
+              });
             } else {
               req.flash("error_msg", "Please log in to upload media.");
               return res.redirect("/dashboard/login");
@@ -257,10 +260,12 @@ export default class MediaController {
     try {
       const userId = req.session.user ? req.session.user.id : null;
       if (!userId) {
-        return res.status(401).json({ success: false, message: "Unauthorized. Please log in." });
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized. Please log in." });
       }
       // Pass userId to filter media
-      const result = await this.mediaLibrary.getAllMedia(userId); 
+      const result = await this.mediaLibrary.getAllMedia(userId);
 
       if (result.success) {
         return res.status(200).json({
@@ -289,7 +294,9 @@ export default class MediaController {
     try {
       const userId = req.session.user ? req.session.user.id : null;
       if (!userId) {
-        return res.status(401).json({ status: 401, message: "Unauthorized. Please log in." });
+        return res
+          .status(401)
+          .json({ status: 401, message: "Unauthorized. Please log in." });
       }
       const { id } = req.params;
 
@@ -300,13 +307,15 @@ export default class MediaController {
         });
       }
       // Pass userId for ownership check
-      const result = await this.mediaLibrary.getMediaById(id, userId); 
+      const result = await this.mediaLibrary.getMediaById(id, userId);
 
       if (result.success) {
-        if (!result.data) { // Check if data is null (not found for this user)
+        if (!result.data) {
+          // Check if data is null (not found for this user)
           return res.status(404).json({
             status: 404,
-            message: "Media not found or you do not have permission to access it.",
+            message:
+              "Media not found or you do not have permission to access it.",
           });
         }
         return res.status(200).json({
@@ -315,8 +324,9 @@ export default class MediaController {
         });
       } else {
         // Original error handling from mediaLibrary (e.g., DB error)
-        return res.status(500).json({ // Changed from 404 to 500 if result.success is false
-          status: 500, 
+        return res.status(500).json({
+          // Changed from 404 to 500 if result.success is false
+          status: 500,
           message: result.error || "Failed to retrieve media.",
         });
       }
@@ -344,7 +354,16 @@ export default class MediaController {
 
       try {
         const { id } = req.params;
-        const { name, description } = req.body;
+        const { name, description, redirect } = req.body;
+        const userId = req.session.user ? req.session.user.id : null;
+
+        if (!userId) {
+          return res.status(401).json({
+            success: false,
+            status: 401,
+            message: "Unauthorized. Please log in to update media.",
+          });
+        }
 
         if (!id) {
           return res.status(400).json({
@@ -354,14 +373,16 @@ export default class MediaController {
           });
         }
 
-        // Get the existing media first
-        const mediaResult = await this.mediaLibrary.getMediaById(id);
+        console.log(`Updating media ID ${id} for user ${userId}`);
+
+        // Get the existing media first with userId
+        const mediaResult = await this.mediaLibrary.getMediaById(id, userId);
 
         if (!mediaResult.success) {
           return res.status(404).json({
             success: false,
             status: 404,
-            message: mediaResult.error,
+            message: mediaResult.error || "Media not found or access denied",
           });
         }
 
@@ -373,6 +394,7 @@ export default class MediaController {
         // Handle file update if a new file is uploaded
         if (req.file) {
           const file = req.file;
+          console.log("New file uploaded:", file.filename);
 
           // Generate a new filename - but we don't need to save the file
           // as multer has already saved it with this filename
@@ -393,13 +415,37 @@ export default class MediaController {
           );
 
           if (fs.existsSync(oldFilePath)) {
-            fs.unlinkSync(oldFilePath);
+            try {
+              fs.unlinkSync(oldFilePath);
+              console.log(`Deleted old file: ${oldFilePath}`);
+            } catch (fileError) {
+              console.error(
+                `Error deleting old file ${oldFilePath}:`,
+                fileError
+              );
+              // Continue even if file deletion fails
+            }
+          } else {
+            console.warn(`Old file not found at path: ${oldFilePath}`);
           }
         }
 
-        const result = await this.mediaLibrary.updateMedia(id, updateData);
+        const result = await this.mediaLibrary.updateMedia(
+          id,
+          updateData,
+          userId
+        );
 
         if (result.success) {
+          // Check if this is a form submission requesting redirect
+          if (redirect === "true") {
+            // Add a flash message for confirmation
+            req.flash("success_msg", "Media updated successfully");
+            // Redirect back to the media library
+            return res.redirect("/dashboard/media-library");
+          }
+
+          // Otherwise, return JSON response for API usage
           return res.status(200).json({
             success: true,
             status: 200,
@@ -407,6 +453,11 @@ export default class MediaController {
             data: result.data,
           });
         } else {
+          if (redirect === "true") {
+            req.flash("error_msg", "Failed to update media");
+            return res.redirect("/dashboard/media-library");
+          }
+
           return res.status(500).json({
             success: false,
             status: 500,
@@ -428,6 +479,12 @@ export default class MediaController {
         } else {
           console.log("No file was uploaded with the request");
         }
+
+        if (req.body.redirect === "true") {
+          req.flash("error_msg", "An error occurred while updating the file");
+          return res.redirect("/dashboard/media-library");
+        }
+
         return res.status(500).json({
           success: false,
           status: 500,
@@ -442,6 +499,15 @@ export default class MediaController {
   deleteMedia = async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = req.session.user ? req.session.user.id : null;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          status: 401,
+          message: "Unauthorized. Please log in to delete media.",
+        });
+      }
 
       if (!id) {
         return res.status(400).json({
@@ -452,13 +518,13 @@ export default class MediaController {
       }
 
       // Get the media first to get file path
-      const mediaResult = await this.mediaLibrary.getMediaById(id);
+      const mediaResult = await this.mediaLibrary.getMediaById(id, userId);
 
       if (!mediaResult.success) {
         return res.status(404).json({
           success: false,
           status: 404,
-          message: mediaResult.error,
+          message: mediaResult.error || "Media not found or access denied",
         });
       }
 
@@ -471,11 +537,19 @@ export default class MediaController {
       );
 
       if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`Deleted file: ${filePath}`);
+        } catch (fileError) {
+          console.error(`Error deleting file ${filePath}:`, fileError);
+          // Continue even if file deletion fails
+        }
+      } else {
+        console.warn(`File not found at path: ${filePath}`);
       }
 
       // Delete from database
-      const result = await this.mediaLibrary.deleteMedia(id);
+      const result = await this.mediaLibrary.deleteMedia(id, userId);
 
       if (result.success) {
         return res.status(200).json({
@@ -505,7 +579,13 @@ export default class MediaController {
   // Render media library page
   renderMediaLibrary = async (req, res) => {
     try {
-      const result = await this.mediaLibrary.getAllMedia();
+      const userId = req.session.user ? req.session.user.id : null;
+      if (!userId) {
+        req.flash("error_msg", "Please log in to view media library");
+        return res.redirect("/dashboard/login");
+      }
+
+      const result = await this.mediaLibrary.getAllMedia(userId);
       const baseUrl = req.protocol + "://" + req.get("host");
 
       if (result.success) {

@@ -14,6 +14,7 @@ import { modules } from "../../lib/index.js";
 import { socket, moment } from "../config/index.js";
 import SessionDatabase from "../database/db/session.db.js";
 import Message from "./Client/handler/Message.js";
+import HistoryMessage from "../database/db/history.db.js";
 
 const { SESSION_PATH, LOG_PATH, MULTI_SESSION } = process.env;
 let sessions = {};
@@ -106,11 +107,18 @@ class ConnectionSession extends SessionDatabase {
     console.log(this.count);
   }
 
-  async createSession(session_name, userId = null) { // Add userId parameter
+  async createSession(session_name, userId = null) {
+    // Add userId parameter
     if (!userId) {
       // This case should ideally be prevented by the controller
       // but as a safeguard:
-      console.error(modules.color("[ERROR]", "#FF0000"), modules.color(`Attempted to create session '${session_name}' without a userId.`, "#E6B0AA"));
+      console.error(
+        modules.color("[ERROR]", "#FF0000"),
+        modules.color(
+          `Attempted to create session '${session_name}' without a userId.`,
+          "#E6B0AA"
+        )
+      );
       // Optionally, emit an error to the specific client if possible, or handle as appropriate
       // For now, we'll prevent session creation if no userId is provided at this stage
       socket.emit("connection-status", {
@@ -339,20 +347,26 @@ class ConnectionSession extends SessionDatabase {
       if (type !== "notify") return;
       // Pass userId to Message handler if it needs to associate history with user
       // This requires Message class to be updated as well.
-      const msgInstance = new Message(client, { messages, type }, session_name, userId);
+      const msgInstance = new Message(
+        client,
+        { messages, type },
+        session_name,
+        userId
+      );
       await msgInstance.mainHandler(); // Ensure mainHandler completes
 
       // Log incoming message to history
       const incomingMessage = messages[0];
       if (incomingMessage && incomingMessage.message) {
         const m = await msgInstance.serial(client, incomingMessage); // Use the serial method from instance
-        if (m.body) { // Only log if there's content
+        if (m.body) {
+          // Only log if there's content
           await this.history.pushNewMessage(
             session_name,
             m.type, // e.g., "text", "image"
             m.from, // Sender JID
             m.body, // Message content or caption
-            userId  // The user ID associated with this session
+            userId // The user ID associated with this session
           );
         }
       }

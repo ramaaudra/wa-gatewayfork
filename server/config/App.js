@@ -9,6 +9,8 @@ import routerUser from "../router/session/session.router.js";
 import routerDashboard from "../router/dashboard/dashboard.router.js";
 import routerApi from "../router/api/api.router.js";
 import routerAutoReply from "../router/dashboard/AutoReply/autoReply.router.js";
+import * as authController from "../router/dashboard/auth.controller.js";
+import { exposeEnvironment } from "../middleware/env.middleware.js";
 
 class App {
   constructor() {
@@ -25,6 +27,9 @@ class App {
     // View engine and static files setup
     this.app.set("view engine", "ejs");
     this.app.use(expressLayout);
+    this.app.set("layout", "layouts/main"); // Set default layout
+    this.app.set("layout extractScripts", true);
+    this.app.set("layout extractStyles", true);
     this.app.use(express.static("public/mazer"));
     this.app.use(express.static("public"));
 
@@ -45,6 +50,9 @@ class App {
     );
     this.app.use(flash());
 
+    // Expose environment to views
+    this.app.use(exposeEnvironment);
+
     // Flash message locals middleware
     this.app.use(function (req, res, next) {
       res.locals.success_msg = req.flash("success_msg");
@@ -62,6 +70,9 @@ class App {
     this.app.get("/", (req, res) => {
       res.redirect("/dashboard");
     });
+
+    // Add root /login route
+    this.app.get("/login", authController.handleRootLogin);
 
     this.app.use("/dashboard", routerDashboard);
     this.app.use("/session", routerUser);

@@ -84,6 +84,14 @@ export const renderLoginPage = (req, res) => {
   });
 };
 
+// Handle raw /login path
+export const handleRootLogin = (req, res) => {
+  if (req.session.user) {
+    return res.redirect("/dashboard");
+  }
+  res.redirect("/dashboard/login");
+};
+
 export const loginUser = async (req, res) => {
   const { username, password } = req.body;
 
@@ -122,6 +130,9 @@ export const loginUser = async (req, res) => {
 };
 
 export const logoutUser = (req, res) => {
+  // Set flash message before destroying the session
+  req.flash("success_msg", "You have successfully logged out.");
+
   req.session.destroy((err) => {
     if (err) {
       console.error("Logout error:", err);
@@ -129,7 +140,6 @@ export const logoutUser = (req, res) => {
       return res.redirect("/dashboard/login");
     }
     // res.clearCookie("connect.sid"); // express-session handles cookie removal on destroy
-    req.flash("success_msg", "You have successfully logged out.");
     res.redirect("/dashboard/login");
   });
 };

@@ -1,8 +1,14 @@
+<!-- Load media functions first -->
+<script src="/assets/js/media-functions.js"></script>
+
 <div class="page-heading">
   <div class="page-title">
     <div class="row">
       <div class="col-12 col-md-6 order-md-1 order-last">
-        <h3><% if (user && user.username) { %> <%= user.username %>'s <% } %>Media Library</h3>
+        <h3>
+          <% if (user && user.username) { %> <%= user.username %>'s <% } %>Media
+          Library
+        </h3>
         <p class="text-subtitle text-muted">
           Manage your media files for messages and auto-replies.
         </p>
@@ -92,19 +98,20 @@
             <td><%= (media.size / 1024).toFixed(2) %> KB</td>
             <td><%= new Date(media.upload_date).toLocaleDateString() %></td>
             <td>
-              <button
-                class="btn btn-sm btn-info me-1 edit-media-btn"
-                data-media-id="<%= media.id %>"
-                data-media-json="<%- encodeURIComponent(JSON.stringify(media)) %>"
+              <a
+                href="javascript:void(0)"
+                onclick="editMedia('<%= media.id %>', '<%= media.name %>', '<%= media.description || '' %>', '<%= media.file_name %>', '<%= media.mime_type %>', '<%= media.size %>')"
+                class="btn btn-sm btn-info me-1"
               >
                 <i class="bi bi-pencil-square"></i>
-              </button>
-              <button
+              </a>
+              <a
+                href="javascript:void(0)"
+                onclick="confirmDelete('<%= media.id %>')"
                 class="btn btn-sm btn-danger"
-                onclick="window.deleteMedia('<%= media.id %>')"
               >
                 <i class="bi bi-trash-fill"></i>
-              </button>
+              </a>
             </td>
           </tr>
           <% }) %> <% } else { %>
@@ -203,7 +210,12 @@
           aria-label="Close"
         ></button>
       </div>
-      <form id="editMediaForm" enctype="multipart/form-data">
+      <form
+        id="editMediaForm"
+        method="POST"
+        action="#"
+        enctype="multipart/form-data"
+      >
         <input type="hidden" id="editMediaId" name="id" />
         <div class="modal-body">
           <div class="mb-3">
@@ -258,18 +270,35 @@
   </div>
 </div>
 
+<!-- SweetAlert2 for nice alerts -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
   // Edit Media Form Submission
   document
     .getElementById("editMediaForm")
-    .addEventListener("submit", async function (event) {
+    .addEventListener("submit", function (event) {
+      // Only prevent default if we want to use AJAX instead of regular form submission
       event.preventDefault();
-      const formData = new FormData(this);
+
+      // Ensure form has correct attributes
+      if (!this.getAttribute("method")) {
+        this.setAttribute("method", "POST");
+      }
+      if (!this.getAttribute("enctype")) {
+        this.setAttribute("enctype", "multipart/form-data");
+      }
+
       const mediaId = document.getElementById("editMediaId").value;
+
+      // Set the correct action URL
+      this.action = "/dashboard/media-library/edit/" + mediaId;
+
+      const formData = new FormData(this);
       const submitButton = this.querySelector('button[type="submit"]');
 
-      // Log form data to console for debugging
-      console.log("Form data for edit submission:");
+      // Log form data for debugging
+      console.log("Form data entries:");
       for (let pair of formData.entries()) {
         console.log(
           pair[0] + ": " + (pair[1] instanceof File ? pair[1].name : pair[1])
@@ -280,68 +309,21 @@
       submitButton.innerHTML =
         '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
 
-      try {
-        const response = await fetch(
-          "/dashboard/media-library/edit/" + mediaId,
-          {
-            method: "POST", // Should be PUT, but forms only support GET/POST. Controller handles it.
-            headers: {
-              Accept: "application/json",
-              "X-Requested-With": "XMLHttpRequest",
-            },
-            body: formData,
-          }
-        );
+      // Add a hidden field to indicate we want to redirect back to the media library
+      const redirectField = document.createElement("input");
+      redirectField.type = "hidden";
+      redirectField.name = "redirect";
+      redirectField.value = "true";
+      this.appendChild(redirectField);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Server error:", response.status, errorText);
+      // Submit the form traditionally
+      this.submit();
 
-          // Try to parse error JSON if possible
-          try {
-            const errorData = JSON.parse(errorText);
-            throw new Error(
-              errorData.message || `Server returned ${response.status}`
-            );
-          } catch (e) {
-            if (e instanceof SyntaxError) {
-              // Not JSON, use text directly
-              throw new Error(
-                `Server returned ${response.status}: ${errorText}`
-              );
-            } else {
-              // Rethrow the parsed error
-              throw e;
-            }
-          }
-        }
-
-        const result = await response.json();
-
-        if (result.success) {
-          Swal.fire("Success!", result.message, "success").then(() => {
-            location.reload();
-          });
-        } else {
-          Swal.fire(
-            "Error!",
-            result.message || "Failed to update media.",
-            "error"
-          );
-        }
-      } catch (error) {
-        console.error("Update error:", error);
-        Swal.fire("Error!", "An unexpected error occurred.", "error");
-      } finally {
-        submitButton.disabled = false;
-        submitButton.innerHTML = "Save Changes";
-        bootstrap.Modal.getInstance(
-          document.getElementById("editMediaModal")
-        ).hide();
-      }
+      // Prevent further processing
+      return false;
     });
 
-  // Media Upload Handling
+  // Media Upload Form
   document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById("addMediaForm");
     if (form) {
@@ -354,19 +336,14 @@
 
         fetch("/dashboard/media-library/upload", {
           method: "POST",
-          headers: {
-            Accept: "application/json",
-            "X-Requested-With": "XMLHttpRequest",
-          },
           body: new FormData(this),
         })
           .then((response) => {
-            // Check if response is JSON
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.includes("application/json")) {
+            if (
+              response.headers.get("content-type")?.includes("application/json")
+            ) {
               return response.json().then((data) => {
                 if (data.success) {
-                  // Display success message with SweetAlert
                   Swal.fire({
                     title: "Success!",
                     text: data.message || "Media uploaded successfully",
@@ -374,26 +351,18 @@
                     timer: 1500,
                     showConfirmButton: false,
                   }).then(() => {
-                    // Use the redirect URL from the response if available, otherwise default to media library
-                    const redirectUrl =
+                    window.location.href =
                       data.redirect || "/dashboard/media-library";
-                    window.location.href = redirectUrl;
                   });
-                  return null;
                 } else {
                   throw new Error(data.message || "Upload failed");
                 }
               });
             } else {
-              // Not a JSON response, assume the server handled the redirect
-              console.log(
-                "Non-JSON response received, page should reload or redirect automatically"
-              );
-              // Fallback redirect if needed
+              // Redirect handler
               setTimeout(() => {
                 window.location.href = "/dashboard/media-library";
               }, 1000);
-              return null;
             }
           })
           .catch((error) => {
@@ -409,12 +378,4 @@
       });
     }
   });
-</script>
-
-<!-- Include the media library JavaScript file -->
-<script src="/assets/js/mediaLibrary.js"></script>
-
-<!-- Debug script for edit functionality -->
-<script>
-  console.log("Media Library page loaded - Debug mode");
 </script>

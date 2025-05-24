@@ -1,11 +1,11 @@
 // filepath: /Users/mbam1/Local Document/Project/whatsapp-gateway/server/database/db/media.db.js
-import MediaModel from "../models/media.model.js";
+import { db } from "../../config/Database.js";
 import { moment } from "../../config/index.js";
 import { Op } from "sequelize";
 
 class MediaLibrary {
   constructor() {
-    this.media = MediaModel;
+    this.media = db.MediaModel;
   }
 
   async addMedia(
@@ -76,7 +76,7 @@ class MediaLibrary {
         order: [["createdAt", "DESC"]],
       });
       return { success: true, data: media };
-    } catch (error)
+    } catch (error) {
       console.error("Error getting all media for user:", userId, error);
       return { success: false, error: error.message };
     }
@@ -86,10 +86,12 @@ class MediaLibrary {
   // This also needs to be user-aware if it's used by user-facing features
   async fetchAllMedia(userId = null) {
     if (!userId) {
-        // Decide behavior: return all media (admin) or error out/return empty (user context)
-        // For now, let's assume if no userId, it's an error or should return empty for non-admins
-        console.warn("MediaLibrary.fetchAllMedia called without userId. Returning empty array.");
-        return { success: true, data: [] }; 
+      // Decide behavior: return all media (admin) or error out/return empty (user context)
+      // For now, let's assume if no userId, it's an error or should return empty for non-admins
+      console.warn(
+        "MediaLibrary.fetchAllMedia called without userId. Returning empty array."
+      );
+      return { success: true, data: [] };
     }
     return this.getAllMedia(userId);
   }
@@ -98,7 +100,10 @@ class MediaLibrary {
     try {
       if (!userId) {
         console.error("MediaLibrary.getMediaById error: userId is required.");
-        return { success: false, error: "User ID is required to get media by ID." };
+        return {
+          success: false,
+          error: "User ID is required to get media by ID.",
+        };
       }
       const media = await this.media.findOne({
         where: { id: id, user_id: userId }, // Ensure media belongs to user
@@ -117,7 +122,10 @@ class MediaLibrary {
     try {
       if (!userId) {
         console.error("MediaLibrary.getMediaByType error: userId is required.");
-        return { success: false, error: "User ID is required to get media by type." };
+        return {
+          success: false,
+          error: "User ID is required to get media by type.",
+        };
       }
       const media = await this.media.findAll({
         where: {
@@ -139,7 +147,10 @@ class MediaLibrary {
     try {
       if (!userId) {
         console.error("MediaLibrary.updateMedia error: userId is required.");
-        return { success: false, error: "User ID is required to update media." };
+        return {
+          success: false,
+          error: "User ID is required to update media.",
+        };
       }
       const media = await this.media.findOne({
         where: { id: id, user_id: userId },
@@ -160,7 +171,10 @@ class MediaLibrary {
     try {
       if (!userId) {
         console.error("MediaLibrary.deleteMedia error: userId is required.");
-        return { success: false, error: "User ID is required to delete media." };
+        return {
+          success: false,
+          error: "User ID is required to delete media.",
+        };
       }
       const media = await this.media.findOne({
         where: { id: id, user_id: userId },

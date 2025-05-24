@@ -1,11 +1,10 @@
-import AutoReplyModel from "../models/autoReply.model.js";
-import ButtonResponseModel from "../models/buttonRespon.model.js";
-import ListResponseModel from "../models/listRespon.model.js";
+import { db } from "../../config/Database.js";
 import { moment } from "../../config/index.js";
+import { Op } from "sequelize";
 
 class ButtonResponse {
   constructor() {
-    this.button = ButtonResponseModel;
+    this.button = db.ButtonResponseModel;
   }
 
   async createButtonResponse(
@@ -17,7 +16,9 @@ class ButtonResponse {
     userId = null
   ) {
     if (!userId) {
-      console.error("ButtonResponse.createButtonResponse error: userId is required.");
+      console.error(
+        "ButtonResponse.createButtonResponse error: userId is required."
+      );
       return; // Or throw error
     }
     for (let j = 0; j < button.filter((x) => x != "").length; j++) {
@@ -57,7 +58,9 @@ class ButtonResponse {
 
     // This logic is a bit complex. It finds all by msg_id, then finds index, then finds by primary key.
     // A more direct approach if deleting a specific keyword for a msg_id (and potentially user):
-    const itemToDelete = await this.button.findOne({ where: { msg_id, keyword, ...(userId && { user_id: userId }) } });
+    const itemToDelete = await this.button.findOne({
+      where: { msg_id, keyword, ...(userId && { user_id: userId }) },
+    });
     if (itemToDelete) {
       await itemToDelete.destroy();
       return true;
@@ -68,7 +71,7 @@ class ButtonResponse {
 
 class ListResponse {
   constructor() {
-    this.list = ListResponseModel;
+    this.list = db.ListResponseModel;
   }
 
   async createListResponse(
@@ -80,7 +83,9 @@ class ListResponse {
     userId = null
   ) {
     if (!userId) {
-      console.error("ListResponse.createListResponse error: userId is required.");
+      console.error(
+        "ListResponse.createListResponse error: userId is required."
+      );
       return; // Or throw error
     }
     for (let j = 0; j < list.filter((x) => x != "").length; j++) {
@@ -112,7 +117,7 @@ class ListResponse {
 
 class AutoReply {
   constructor() {
-    this.reply = AutoReplyModel;
+    this.reply = db.AutoReplyModel;
   }
 
   async createAutoReply(
@@ -143,7 +148,9 @@ class AutoReply {
 
   async checkExistAutoReply(session_number, keyword, userId = null) {
     if (!userId) {
-      console.error("AutoReply.checkExistAutoReply error: userId is required for this check.");
+      console.error(
+        "AutoReply.checkExistAutoReply error: userId is required for this check."
+      );
       return true; // Default to true to prevent accidental overwrites if user is not identified
     }
     const existing = await this.reply.findOne({
@@ -174,7 +181,7 @@ class AutoReply {
   ) {
     if (!userId) {
       console.error("AutoReply.editReplyMessage error: userId is required.");
-      return false; 
+      return false;
     }
     // Assuming session_number and keyword together identify the reply for a specific user
     const result = await this.reply.update(
@@ -216,11 +223,13 @@ class AutoReply {
     // must be linked to a user to fetch that user's specific auto-replies.
     // The `userId` here would be the ID of the user who owns the session `session_number`.
     if (!userId) {
-        // If no userId, it means the session itself is not tied to a user, or the user context wasn't passed.
-        // In this case, perhaps it should look for global auto-replies (user_id is NULL).
-        // For now, let's assume if no userId, no user-specific reply can be found.
-        console.warn(`AutoReply.checkMessageUser: No userId provided for session ${session_number}, keyword ${keyword}. Cannot find user-specific auto-reply.`);
-        return false; 
+      // If no userId, it means the session itself is not tied to a user, or the user context wasn't passed.
+      // In this case, perhaps it should look for global auto-replies (user_id is NULL).
+      // For now, let's assume if no userId, no user-specific reply can be found.
+      console.warn(
+        `AutoReply.checkMessageUser: No userId provided for session ${session_number}, keyword ${keyword}. Cannot find user-specific auto-reply.`
+      );
+      return false;
     }
 
     return await this.reply.findOne({
@@ -232,15 +241,18 @@ class AutoReply {
       },
     });
   }
-  
-  async getAllKeyword(userId = null) { // For fetching all keywords for a user (e.g. for deleteAllReply)
+
+  async getAllKeyword(userId = null) {
+    // For fetching all keywords for a user (e.g. for deleteAllReply)
     if (!userId) {
       console.error("AutoReply.getAllKeyword error: userId is required.");
       return [];
     }
-    return await this.reply.findAll({ where: { user_id: userId }, attributes: ['media_url'] });
+    return await this.reply.findAll({
+      where: { user_id: userId },
+      attributes: ["media_url"],
+    });
   }
-
 
   async deleteAllKeyword(userId = null) {
     if (!userId) {
